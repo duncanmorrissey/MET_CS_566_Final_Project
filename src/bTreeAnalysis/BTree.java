@@ -5,17 +5,16 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Deque;
 
-/**
- * B-tree is a tree data structure that keeps data sorted and allows searches,
- * sequential access, insertions, and deletions in logarithmic time. The B-tree
- * is a generalization of a binary search tree in that a node can have more than
- * two children. Unlike self-balancing binary search trees, the B-tree is
- * optimized for systems that read and write large blocks of data. It is
- * commonly used in databases and file-systems.
- * <p>
- * @see <a href="https://en.wikipedia.org/wiki/B-tree">B-Tree (Wikipedia)</a>
- * <br>
- * @author Justin Wetherell <phishman3579@gmail.com>
+/** 
+ * A significant portion of this BTree class was taken from this link:
+ * https://github.com/phishman3579/java-algorithms-implementation/blob/master/src/com/jwetherell/algorithms/data_structures/BTree.java
+ * 
+ * The edits made add methods to analyze how many times getChild() is called, as this simulates when a new disk read
+ * is required in a database system. Therefore, with differently structured BTrees we can look at how many disk reads are 
+ * required to compare their efficiency (as this is the slowest part of data access). Furthermore, number of comparisons is 
+ * looked at to compare O(n) in differently structured B Trees
+ * 
+ * @author Duncan Morrissey (duncanmorrissey@gmail.com)
  */
 @SuppressWarnings("unchecked")
 public class BTree<T extends Comparable<T>> implements ITree<T> {
@@ -244,6 +243,117 @@ public class BTree<T extends Comparable<T>> implements ITree<T> {
         Node<T> node = getNode(value);
         return (node != null);
     }
+    
+    /**
+     * Get how many comparisons are done in order to find a node.
+     */
+    public int getNodeComparisons(T value) {
+    	int comparisons = 0;
+    	
+        Node<T> node = root;
+        while (node != null) {
+            T lesser = node.getKey(0);
+            comparisons++;
+            if (value.compareTo(lesser) < 0) {
+                if (node.numberOfChildren() > 0)
+                    node = node.getChild(0);
+                else
+                    node = null;
+                continue;
+            }
+
+            int numberOfKeys = node.numberOfKeys();
+            int last = numberOfKeys - 1;
+            T greater = node.getKey(last);
+            comparisons++;
+            if (value.compareTo(greater) > 0) {
+                if (node.numberOfChildren() > numberOfKeys)
+                    node = node.getChild(numberOfKeys);
+                else
+                    node = null;
+                continue;
+            }
+
+            for (int i = 0; i < numberOfKeys; i++) {
+                T currentValue = node.getKey(i);
+                comparisons++;
+                if (currentValue.compareTo(value) == 0) {
+                    return comparisons;
+                }
+
+                int next = i + 1;
+                if (next <= last) {
+                    T nextValue = node.getKey(next);
+                    comparisons++;
+                    if (currentValue.compareTo(value) < 0 && nextValue.compareTo(value) > 0) {
+                        if (next < node.numberOfChildren()) {
+                            node = node.getChild(next);
+                            break;
+                        }
+                        return comparisons;
+                    }
+                }
+            }
+        }
+        return comparisons;
+    }
+    
+    /**
+     * Get how many disk reads are needed to get the node. IE, get how many times "getChild" is called to 
+     * get a node at the bottom of the tree.
+     * 
+     * @return integer of how many disk reads are needed.
+     */
+    public int getNodeDepth(T value){
+    	int height = 0;
+    	Node<T> node = root;
+        while (node != null) {
+            T lesser = node.getKey(0);
+            if (value.compareTo(lesser) < 0) {
+                if (node.numberOfChildren() > 0){
+                    height++;
+                	node = node.getChild(0);
+                }
+                else
+                    node = null;
+                continue;
+            }
+
+            int numberOfKeys = node.numberOfKeys();
+            int last = numberOfKeys - 1;
+            T greater = node.getKey(last);
+            if (value.compareTo(greater) > 0) {
+                if (node.numberOfChildren() > numberOfKeys){
+                	height++;
+                	node = node.getChild(numberOfKeys);
+                }                 
+                else
+                    node = null;
+                continue;
+            }
+
+            for (int i = 0; i < numberOfKeys; i++) {
+                T currentValue = node.getKey(i);
+                if (currentValue.compareTo(value) == 0) {
+                    return height;
+                }
+
+                int next = i + 1;
+                if (next <= last) {
+                    T nextValue = node.getKey(next);
+                    if (currentValue.compareTo(value) < 0 && nextValue.compareTo(value) > 0) {
+                        if (next < node.numberOfChildren()) {
+                        	height++;
+                            node = node.getChild(next);
+                            break;
+                        }
+                        return height;
+                    }
+                }
+            }
+        }
+        return height;
+    }
 
     /**
      * Get the node with value.
@@ -296,6 +406,8 @@ public class BTree<T extends Comparable<T>> implements ITree<T> {
         }
         return null;
     }
+        
+    
 
     /**
      * Get the greatest valued child from node.
